@@ -11,15 +11,18 @@ os.environ['COQUI_TOS_AGREED'] = '1'
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 
-# Global model variable
+# Global variables
 model = None
 config = None
 
 def load_model():
-    """Load EGTTS model"""
+    """Load EGTTS model once"""
     global model, config
     
-    print("🚀 Loading EGTTS V0.1 model...")
+    if model is not None:
+        return
+    
+    print("🚀 Loading EGTTS V0.1...")
     
     config = XttsConfig()
     config.load_json("/models/EGTTS-V0.1/config.json")
@@ -33,27 +36,15 @@ def load_model():
     )
     model.cuda()
     
-    print("✅ Model loaded successfully!")
+    print("✅ Model loaded!")
 
 def handler(job):
-    """
-    RunPod handler for EGTTS
+    """Handler for RunPod"""
     
-    Input format:
-    {
-        "text": "ازيك يا معلم",
-        "language": "ar",
-        "temperature": 0.75
-    }
-    """
-    global model, config
-    
-    # Load model if not loaded
-    if model is None:
-        load_model()
+    # Load model
+    load_model()
     
     job_input = job.get("input", {})
-    
     text = job_input.get("text", "")
     language = job_input.get("language", "ar")
     temperature = job_input.get("temperature", 0.75)
@@ -62,14 +53,14 @@ def handler(job):
         return {"error": "No text provided"}
     
     try:
-        print(f"📝 Generating speech for: {text}")
+        print(f"📝 Text: {text}")
         
-        # Get default conditioning (no speaker audio)
+        # Get conditioning
         gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(
             audio_path=None
         )
         
-        # Generate speech
+        # Generate
         out = model.inference(
             text,
             language,
@@ -89,19 +80,13 @@ def handler(job):
         
         audio_b64 = base64.b64encode(buffer.getvalue()).decode()
         
-        print("✅ Speech generated successfully!")
-        
         return {
             "audio": audio_b64,
-            "sample_rate": 24000,
-            "text": text
+            "sample_rate": 24000
         }
         
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
         return {"error": str(e)}
 
-# Start the serverless handler
 if __name__ == "__main__":
-    print("🎙️ Starting EGTTS Serverless Handler...")
     runpod.serverless.start({"handler": handler})
